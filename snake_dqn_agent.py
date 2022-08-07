@@ -1,11 +1,8 @@
-from .base_agent import Agent
-
 import random
 import numpy as np
 from keras import Sequential
 from collections import deque
 from keras.layers import Dense
-import matplotlib.pyplot as plt
 from keras.optimizers import Adam
 import time
 import math
@@ -76,10 +73,9 @@ class DQN:
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
-class DQNAGENT(Agent):
+class DQNAGENT():
     
     def __init__(self, env):
-        super().__init__()
         self.env = env
         self.ACTIONS = ["up", "right", "down", "left"]
         

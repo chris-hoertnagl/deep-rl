@@ -1,6 +1,6 @@
 from time import sleep
 from gym import Env, spaces
-from .api import api_client
+import event_api_client as api_client
 import json
 import os
 
@@ -11,7 +11,7 @@ class ChromeEnv(Env):
     def __init__(self):
         print("created Env")
         self.action_space = spaces.Discrete(4)
-        self.observation_space = spaces.Discrete(12)
+        self.observation_space = spaces.Discrete(100)
         
         self.current_observation = None
         self.observation_updated = False
@@ -31,9 +31,8 @@ class ChromeEnv(Env):
         
         # Wait for state update from the Chrome Extension
         while not self.observation_updated:
-            with open(param_path) as f:
-                sleep_seconds = float(json.load(f)["sleep_seconds"])
-            sleep(sleep_seconds)
+            # print("waiting for state")
+            pass
         
         observation = self.current_observation["observation"]
         done = self.current_observation["done"]
@@ -51,9 +50,8 @@ class ChromeEnv(Env):
         
         # Wait for state update from the Chrome Extension
         while not self.observation_updated:
-            with open(param_path) as f:
-                sleep_after_reset = float(json.load(f)["sleep_after_reset"])
-            sleep(sleep_after_reset)
+            # print("waiting for reset")
+            pass
         
         observation = self.current_observation["observation"]
         self.observation_updated = False

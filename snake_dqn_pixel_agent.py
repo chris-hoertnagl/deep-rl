@@ -1,13 +1,11 @@
-from .base_agent import Agent
-
 import random
 import numpy as np
 from keras import Sequential
 from collections import deque
 from keras.layers import Dense
-import matplotlib.pyplot as plt
 from keras.optimizers import Adam
 import os
+import math
 
 
 class DQN:
@@ -75,17 +73,16 @@ class DQN:
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
-class DQNAGENT(Agent):
+class DQNAGENT():
     
     def __init__(self, env):
-        super().__init__()
         self.env = env
         self.ACTIONS = ["up", "right", "down", "left"]
         self.training_episodes = 10000
-        self.log_path = os.path.join(os.path.dirname(__file__), '..','logs', 'log.txt')
+        self.log_path = os.path.join(os.path.dirname(__file__), 'logs', 'log.txt')
         
         # variables for reward enhancement
-        # self.prev_dist = None
+        self.prev_dist = None
         self.prev_length = None
         
         
@@ -103,7 +100,7 @@ class DQNAGENT(Agent):
         agent = DQN(self.env, params)
         for e in range(self.training_episodes):
             observation = self.env.reset()
-            # self.prev_dist = self._measure_distance(observation)
+            self.prev_dist = self._measure_distance(observation)
             self.prev_length = 0
             state = self._enhance_state(observation)
             state = np.reshape(state, (1, self.env.observation_space.n))
@@ -112,7 +109,7 @@ class DQNAGENT(Agent):
             for i in range(max_steps):
                 action = agent.act(state)
                 observation, reward_indicators, done, _ = self.env.step(self.ACTIONS[action])
-                reward = self._enhance_reward(reward_indicators, done)
+                reward = self._enhance_reward(observation, reward_indicators, done)
                 score = reward_indicators["length"]
                 next_state = self._enhance_state(observation)
                 print_state = next_state
@@ -162,8 +159,33 @@ class DQNAGENT(Agent):
         
         return state
     
-    def _enhance_reward(self, reward_indicators, done):
+    # def _enhance_reward(self, reward_indicators, done):
+    #     reward = 0
+    #     length = int(reward_indicators["length"])
+        
+    #     if done:
+    #         reward = -100
+    #     else:
+    #         if length > self.prev_length:
+    #             print("ate food")
+    #             reward = 30
+    #         else:
+    #             reward = -1
+        
+    #     self.prev_length = length
+        
+    #     return reward
+
+    def _measure_distance(self, observation):
+        snake_x = int(observation["head_x"])
+        snake_y = int(observation["head_y"])
+        apple_x = int(observation["food_x"])
+        apple_y = int(observation["food_y"])  
+        return round(math.sqrt((snake_x-apple_x)**2 + (snake_y-apple_y)**2), 8)
+    
+    def _enhance_reward(self, obs, reward_indicators, done):
         reward = 0
+        dist = self._measure_distance(obs)
         length = int(reward_indicators["length"])
         
         if done:
@@ -171,10 +193,15 @@ class DQNAGENT(Agent):
         else:
             if length > self.prev_length:
                 print("ate food")
-                reward = 30
+                reward = 20
             else:
-                reward = -1
+                if dist < self.prev_dist:
+                    reward = 1
+                else:
+                    self.prev_dist = dist
+                    reward = -2
         
+        self.prev_dist = dist
         self.prev_length = length
         
         return reward
