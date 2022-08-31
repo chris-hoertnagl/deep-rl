@@ -1,11 +1,9 @@
-import browser_environment
-import snake_dqn_pixel_agent as agent
-import tensorflow as tf;
+import python_snake_env
+import snake_python_agent as agent
 
 
 if __name__ == '__main__':
-    print(tf.config.list_physical_devices('GPU'))
-    env = browser_environment.ChromeEnv()
+    env = python_snake_env.SnakeEnv(tiles=5)
     agent = agent.DQNAGENT(env=env)
     agent.train()
     
