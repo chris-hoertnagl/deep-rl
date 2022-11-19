@@ -99,7 +99,7 @@ class DQNAGENT():
        
         for e in range(self.training_episodes):
             render = False
-            if (e % 100) == 0:
+            if (e % 1) == 0:
                 render = True
             observation = self.env.reset()
             self.prev_length = 0
@@ -109,7 +109,7 @@ class DQNAGENT():
             max_steps = 10000
             for i in range(max_steps):
                 action = agent.act(state)
-                observation, reward_indicators, done, _ = self.env.step(action)
+                observation, reward_indicators, done, _ = self.env.step(self.env.actions[action])
                 reward = self._enhance_reward(reward_indicators, done)
                 score = reward_indicators
                 next_state = self._enhance_state(observation)
