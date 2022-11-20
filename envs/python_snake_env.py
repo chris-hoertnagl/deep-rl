@@ -1,5 +1,6 @@
 from copy import deepcopy
 from gym import Env, spaces
+import numpy as np
 import random
 import pygame
 
@@ -28,21 +29,21 @@ class  SnakeEnv(Env):
         super(SnakeEnv, self).__init__()
         self.TILES = tiles
         self.BLOCK_SIZE = tile_size
+        self.GRID_POS = {(y,x) for x in range(0, self.TILES) for y in  range(0, self.TILES)}
 
         self.actions = Direction.DIRECTIONS
         self.action_space = spaces.Discrete(len(self.actions))
         self.observation_space = spaces.Discrete(self.TILES * self.TILES)
         
-        
         self.reset()
         
     def reset(self):
-        self.grid = [[SnakeEnv.EMPTY for x in range(self.TILES)] for y in range(self.TILES)]
+        self.grid = np.array([[SnakeEnv.EMPTY for x in range(self.TILES)] for y in range(self.TILES)])
         
         start_y = random.randint(0 , self.TILES - 1)
         start_x = random.randint(0 , self.TILES - 1)
         self.grid[start_y][start_x] = SnakeEnv.HEAD
-        self.snake = [(start_y, start_x)]
+        self.snake = np.array([[start_y, start_x]])
         apple_y, apple_x = self.generate_apple()
         self.grid[apple_y][apple_x] = SnakeEnv.APPLE
         self.apple = (apple_y, apple_x)
@@ -76,13 +77,12 @@ class  SnakeEnv(Env):
         return instance
 
     def generate_apple(self):
-        choices = {(y,x) for x in range(0, self.TILES) for y in  range(0, self.TILES)}
-        allowed = list(choices - set(self.snake))
+        allowed = list(self.GRID_POS - set([tuple(e) for e in self.snake]))
         if allowed:
             return random.choice(allowed)
         else:
             # In case the board is full of snake the game will end anyway
-            return random.choice(list(choices))
+            return random.choice(list(self.GRID_POS))
             
     def action_input(self, direction):
         # TODO: maybe think about movement in opposite directions
@@ -112,7 +112,7 @@ class  SnakeEnv(Env):
             self.terminal = True
             return
         
-        self.snake.append(new_head)
+        self.snake = np.append(self.snake, [new_head], axis=0)
         self.grid[head_y][head_x] = SnakeEnv.BODY
         head_y, head_x = self.snake[-1]
         self.grid[head_y][head_x] = SnakeEnv.HEAD
@@ -164,3 +164,4 @@ class  SnakeEnv(Env):
                 color = self.grid[y][x]
                 pygame.draw.rect(screen, COLORS[color], [x * self.BLOCK_SIZE, y * self.BLOCK_SIZE, (x + 1) * self.BLOCK_SIZE , (y + 1) * self.BLOCK_SIZE])
         pygame.display.update()
+
