@@ -29,10 +29,10 @@ class  SnakeEnv(Env):
         self.TILES = tiles
         self.BLOCK_SIZE = tile_size
 
-        self.action_space = spaces.Discrete(4)
+        self.actions = Direction.DIRECTIONS
+        self.action_space = spaces.Discrete(len(self.actions))
         self.observation_space = spaces.Discrete(self.TILES * self.TILES)
         
-        self.actions = Direction.DIRECTIONS
         
         self.reset()
         
@@ -58,7 +58,9 @@ class  SnakeEnv(Env):
         done = self.terminal
         self.score = len(self.snake)
         score = self.score
-        info = {}
+        info = {
+            "direction": action
+        }
         
         return observation, score, done, info
     

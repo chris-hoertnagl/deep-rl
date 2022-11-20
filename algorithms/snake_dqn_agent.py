@@ -4,18 +4,18 @@ from keras import Sequential
 from collections import deque
 from keras.layers import Dense
 from keras.optimizers import Adam
-import time
-import math
+from gym import spaces
+from IPython.display import clear_output
 
 
 class DQN:
 
     """ Deep Q Network """
 
-    def __init__(self, env, params):
+    def __init__(self, action_space, observation_space, params):
 
-        self.action_space = env.action_space
-        self.observation_space = env.observation_space
+        self.action_space = action_space
+        self.observation_space = observation_space
         self.epsilon = params['epsilon'] 
         self.gamma = params['gamma'] 
         self.batch_size = params['batch_size'] 
@@ -75,13 +75,9 @@ class DQN:
 
 class DQNAGENT():
     
-    def __init__(self, env):
+    def __init__(self, env, processor):
         self.env = env
-        self.ACTIONS = ["up", "right", "down", "left"]
-        
-        # variables for reward enhancement
-        self.prev_dist = None
-        self.prev_length = None
+        self.processor = processor
         
         
     def train(self):
@@ -96,118 +92,29 @@ class DQNAGENT():
         params['layer_sizes'] = [128, 128, 128]
         episode = 1000
 
-        sum_of_rewards = []
-        agent = DQN(self.env, params)
+        agent = DQN(action_space=self.env.action_space, observation_space=spaces.Discrete(12), params=params)
+        high_score = 0
         for e in range(episode):
             observation = self.env.reset()
-            self.prev_dist = self._measure_distance(observation)
-            self.prev_length = 0
-            state = self._enhance_state(observation)
-            state = np.reshape(state, (1, self.env.observation_space.n))
-            score = 0
+            state = self.processor.process_state(observation, {"direction": self.env.actions[0]})
+
             max_steps = 10000
             for i in range(max_steps):
                 action = agent.act(state)
-                prev_state = state
-                observation, reward_indicators, done, _ = self.env.step(self.ACTIONS[action])
-                reward = self._enhance_reward(observation, reward_indicators, done)
-                score += reward
-                next_state = self._enhance_state(observation)
-                next_state = np.reshape(next_state, (1, self.env.observation_space.n))
+                observation, score, done, info = self.env.step(self.env.actions[action])
+                reward = self.processor.process_reward(observation, score, done, info)
+                next_state = self.processor.process_state(observation, info)
                 agent.remember(state, action, reward, next_state, done)
                 state = next_state
+                if e % 5 == 0:
+                    clear_output()
+                    self.env.render()
                 if params['batch_size'] > 1:
                     agent.replay()
                 if done:
-                    print(f'final state before dying: {str(prev_state)}')
-                    print(f'episode: {e+1}/{episode}, score: {score}')
+                    if score > high_score:
+                        high_score = score
+                    print(f"Episode {e}/{episode}, Score: {score}, HighScore: {high_score}")
                     break
-            sum_of_rewards.append(score)
-        return sum_of_rewards
-    
-    def _enhance_state(self, observation):
-        snake_x = int(observation["head_x"])
-        snake_y = int(observation["head_y"])
-        apple_x = int(observation["food_x"])
-        apple_y = int(observation["food_y"])
-        field_size = int(observation["field_size"])
-        snake_direction = observation["direction"]
 
-        # wall check
-        if snake_y == 0:
-            wall_up, wall_down = 1, 0
-        elif snake_y == (field_size - 1):
-            wall_up, wall_down = 0, 1
-        else:
-            wall_up, wall_down = 0, 0
-        if snake_x == (field_size - 1):
-            wall_right, wall_left = 1, 0
-        elif snake_x == 0:
-            wall_right, wall_left = 0, 1
-        else:
-            wall_right, wall_left = 0, 0
-        
-        # observation: apple_down, apple_left, apple_up, apple_right, obstacle_up, obstacle_right, obstacle_down, obstacle_left, direction_up, direction_right, direction_down, direction_left
-        state = [int(snake_y < apple_y), int(snake_x < apple_x), int(snake_y > apple_y), int(snake_x > apple_x), \
-                    wall_up, wall_right, wall_down, wall_left, \
-                    int(snake_direction == 'UP'), int(snake_direction == 'RIGHT'), int(snake_direction == 'DOWN'), int(snake_direction == 'LEFT')]
-        
-        return state
-    
-    def _measure_distance(self, observation):
-        snake_x = int(observation["head_x"])
-        snake_y = int(observation["head_y"])
-        apple_x = int(observation["food_x"])
-        apple_y = int(observation["food_y"])  
-        return round(math.sqrt((snake_x-apple_x)**2 + (snake_y-apple_y)**2), 8)
-    
-    def _enhance_reward(self, obs, reward_indicators, done):
-        reward = 0
-        dist = self._measure_distance(obs)
-        length = int(reward_indicators["length"])
-        
-        if done:
-            reward = -50
-        else:
-            if length > self.prev_length:
-                print("ate food")
-                reward = 10
-            else:
-                if dist < self.prev_dist:
-                    reward = 1
-                else:
-                    self.prev_dist = dist
-                    reward = -1
-        
-        self.prev_dist = dist
-        self.prev_length = length
-        
-        return reward
-    
-    # def _enhance_reward(self, obs, reward_indicators, done):
-    #     reward = 0
-    #     length = int(reward_indicators["length"])
-        
-    #     if done:
-    #         reward = -50
-    #     else:
-    #         if length > self.prev_length:
-    #             print("ate food")
-    #             reward = 20
-    #         else:
-    #             reward = -1
-        
-    #     self.prev_length = length
-        
-    #     return reward
-    
-    
-    def test(self):
-        print("Test not implemented yet")
-                
-    def load_model(self):
-        print("Load model not implemented yet")
-    
-    def store_model(self):
-        print("Store model not implemented yet")
     
