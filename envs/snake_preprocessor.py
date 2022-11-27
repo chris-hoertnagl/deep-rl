@@ -1,12 +1,41 @@
 import numpy as np
+from gym import spaces
 
 from envs.python_snake_env import SnakeEnv
 
-class Preprocessor:
+class FullState:
 
     def __init__(self) -> None:
         # variables for reward enhancement
         self.prev_score = 0
+        self.observation_space = spaces.Discrete(40)
+
+    def process_state(self, state, info):
+        processed_s = state       
+        snake_direction = [int(info["direction"] == 'UP'), int(info["direction"] == 'RIGHT'), int(info["direction"] == 'DOWN'), int(info["direction"] == 'LEFT')]
+        processed_s = np.append(np.ravel(processed_s), snake_direction)
+        processed_s = np.reshape(processed_s, (1, len(processed_s)))
+        return processed_s
+
+    def process_reward(self, state, score, is_terminal, info):
+        processed_r = 0
+        
+        if is_terminal:
+            processed_r = 0
+        else:
+            processed_r = score - self.prev_score
+        
+        self.prev_score = score
+
+        return processed_r
+
+
+class ReduceState:
+
+    def __init__(self) -> None:
+        # variables for reward enhancement
+        self.prev_score = 0
+        self.observation_space = spaces.Discrete(12)
 
     def process_state(self, state, info):
         processed_s = state

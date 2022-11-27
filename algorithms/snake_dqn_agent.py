@@ -75,9 +75,12 @@ class DQN:
 
 class DQNAGENT():
     
-    def __init__(self, env, processor):
+    def __init__(self, env, processor, render):
         self.env = env
+        # Enable state space reduction and reward enhancements
         self.processor = processor
+        self.env.observation_space = self.processor.observation_space
+        self.render = render
         
         
     def train(self):
@@ -85,14 +88,14 @@ class DQNAGENT():
         params['name'] = None
         params['epsilon'] = 1
         params['gamma'] = .95
-        params['batch_size'] = 100
+        params['batch_size'] = 200
         params['epsilon_min'] = .01
         params['epsilon_decay'] = .995
         params['learning_rate'] = 0.00025
-        params['layer_sizes'] = [128, 128, 128]
-        episode = 1000
+        params['layer_sizes'] = [128, 128, 128 ,128]
+        episode = 10000
 
-        agent = DQN(action_space=self.env.action_space, observation_space=spaces.Discrete(12), params=params)
+        agent = DQN(action_space=self.env.action_space, observation_space=self.env.observation_space, params=params)
         high_score = 0
         for e in range(episode):
             observation = self.env.reset()
@@ -106,12 +109,12 @@ class DQNAGENT():
                 next_state = self.processor.process_state(observation, info)
                 agent.remember(state, action, reward, next_state, done)
                 state = next_state
-                if e % 5 == 0:
-                    clear_output()
+                if self.render:
                     self.env.render()
                 if params['batch_size'] > 1:
                     agent.replay()
                 if done:
+                    clear_output()
                     if score > high_score:
                         high_score = score
                     print(f"Episode {e}/{episode}, Score: {score}, HighScore: {high_score}")
