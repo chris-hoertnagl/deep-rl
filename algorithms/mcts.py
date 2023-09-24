@@ -18,7 +18,7 @@ class Node():
         self.ucb = float("-inf")
 
 class MCTS():
-    def __init__(self, iterations=1000, exploration_constant=2, discount = 0.99, step_cost=0.5):        
+    def __init__(self, iterations:int = 1000, exploration_constant:float = 2, discount:float = 0.99, step_cost:float = 0.5):        
         self.iterations = iterations
         self.C = exploration_constant
         
@@ -64,7 +64,7 @@ class MCTS():
             
             # in case of multiple best nodes, randomly choose one
             search_node = random.choice(best_nodes)
-            # check if node is a leaf node
+            # check if node is expandable (has unexplored options)
             is_expandable = len(search_node.children) < len(search_node.state.actions)
         return search_node
 
@@ -72,34 +72,49 @@ class MCTS():
         # terminal nodes can not be expanded
         if node.is_terminal:
             return node
-
-        for action in node.state.actions:
-            if action not in node.children:
-                state_copy = node.state.get_copy()
-                state_copy.step(action)
-                new_node = Node(state_copy, node)
-                node.children[action] = new_node
-                return new_node
+        # randomly choose an unexplored action to expand the tree
+        action = random.choice([a for a in node.state.actions if not a in node.children.keys()])
+        # create new node and add to the tree
+        state_copy = node.state.get_copy()
+        state_copy.step(action)
+        new_node = Node(state_copy, node)
+        node.children[action] = new_node
+        
+        return new_node
             
     def __simulation(self, node: Node) -> float:
+        # if state is terminal no new reward to backpropagate
         if node.is_terminal:
             return 0
         else:
+            # copy environment to run simulations
             state = node.state.get_copy()
             reward = state.score
             steps = 0
 
             while not state.terminal:
+                # randomly take an action
+                
+                # Bonus: required to remember previous score to see if action led to an improvement
+                old_score = state.score
+                
                 action = random.choice(state.actions)
-                last_game_score = state.score
                 state.step(action)
-                step_reward = state.score - last_game_score - self.step_cost
+                
+                # Bonus: punish reward for taking action to avoid pure survival over improving score
+                step_reward = state.score - old_score - self.step_cost
+                # Bonus: Discount rewards that our further out in the future
                 reward += step_reward * (self.discount ** steps)
+                
+                # Otherise this would also be enough for the algorithm to work
+                # reward = state.score
+                
                 steps += 1
 
             return reward
 
     def __backpropogation(self, node: Node, reward: float) -> None:
+        # backpropagate from node to root and update visits and value of node
         while node is not None:
             node.num_visits += 1
             node.value += reward
