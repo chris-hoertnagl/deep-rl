@@ -1,130 +1,106 @@
-from __future__ import division
-
+from __future__ import annotations
 import math
 import random
-from pprint import pprint
 
-def randomPolicy(original_state, discount):
-    state = original_state.get_copy()
-    
-    reward = state.score
-    steps = 0
-    
-    while not state.terminal:
-        try:
-            action = random.choice(state.actions)
-        except IndexError:
-            raise Exception("Non-terminal state has no possible actions: " + str(state))
-        last_game_score = state.score
-        state.step(action)
-        step_reward = state.score - last_game_score - 0.1
-        reward += step_reward * (discount ** steps)
-        steps += 1
-    
-    return reward
+class SnakeEnv:
+    pass
 
-
-class treeNode():
-    def __init__(self, state, parent):
+class Node():
+    def __init__(self, state: SnakeEnv, parent: Node):
         self.state = state
         self.is_terminal = state.terminal
         self.parent = parent
-        if parent is None:
-            self.depth = 0
-        else:
-            self.depth = parent.depth + 1
+        self.depth = 0 if parent is None else parent.depth + 1
         
-        self.numVisits = 0
+        self.num_visits = 0
         self.value = 0
         self.children = {}
         self.ucb = float("-inf")
 
-    def __str__(self):
-        s = f"R: {round(self.value, 2)}, V: {self.numVisits}, U: {round(self.ucb, 2)}"
-        return s
-
 class MCTS():
-    def __init__(self, iterations=1000, explorationConstant=2, discount = 0.99, rolloutPolicy=randomPolicy, verbose=False):
-
-        self.verbose = verbose
-        
+    def __init__(self, iterations=1000, exploration_constant=2, discount = 0.99, step_cost=0.5):        
         self.iterations = iterations
-        self.explorationConstant = explorationConstant
-        self.discount = discount
-        self.rollout = rolloutPolicy
-
-    def search(self, initialState):
-        self.root = treeNode(initialState, None)
+        self.C = exploration_constant
         
-        for i in range(self.iterations):
-            self.execute_iteration()
+        # Bonus: it is good practice to add a discount to diminish value of actions further out in the future
+        self.discount = discount
+        # Bonus: adding step cost will ensure that the algorithm does not prefer driving around surviving over risking to eat
+        self.step_cost = step_cost
 
-        action = max([(action, node.value) for action, node in self.root.children.items()],key=lambda x:x[1])[0]
+    def find_best_action(self, current_state: SnakeEnv):
+        # Initialize root with current state
+        root = Node(current_state, None)
+        
+        for _ in range(self.iterations):
+            # Execute 4 steps of one iteration to update the tree
+            selected_node = self.__selection(root)
+            added_node = self.__expand(selected_node)
+            reward = self.__simulation(added_node)
+            self.__backpropogation(added_node, reward)
+
+        # After iteration budget is used, select best action from root node
+        action = max([(action, node.value) for action, node in root.children.items()],key=lambda x:x[1])[0]
         return action
-    
-    def get_info(self):
-        info = ""
-        for action, node in self.root.children.items():
-            info += f"{action}: {str(node)} /// "
-        return info
+        
 
-    def execute_iteration(self):
-        """
-            execute a selection-expansion-simulation-backpropagation round
-        """
-        if self.verbose:
-            print("######## Root State ##########")
-            pprint(self.root.state.grid)
-            print(self.get_info())
-            node = self.selectNode(self.root)
-            print(self.get_info())
-            node = self.expand(node)
-            print(self.get_info())
-            reward = self.rollout(node.state, self.discount)
-            print(self.get_info())
-            self.backpropogate(node, reward)
-            print(self.get_info())
-        else:
-            node = self.selectNode(self.root)
-            node = self.expand(node)
-            reward = 0 if node.is_terminal else self.rollout(node.state, self.discount)
-            self.backpropogate(node, reward)
-
-    def selectNode(self, node):
+    def __selection(self, node: Node) -> Node:
         search_node = node
+        
         is_expandable = len(search_node.children) < len(search_node.state.actions)
+        # if the selected node can be expanded we stop the search
         while not (search_node.is_terminal or is_expandable):
-            search_node = self.getBestChild(search_node, self.explorationConstant)
+            best_ucb = float("-inf")
+            # track multiple nodes in case of equal UCB values
+            best_nodes = []
+            for _, child in search_node.children.items():
+                # calculate UCB for each child node
+                child.ucb = child.value / child.num_visits + self.C * math.sqrt(2 * math.log(search_node.num_visits) / child.num_visits)
+                
+                if child.ucb > best_ucb:
+                    best_ucb = child.ucb
+                    best_nodes = [child]
+                elif child.ucb == best_ucb:
+                    best_nodes.append(child)
+            
+            # in case of multiple best nodes, randomly choose one
+            search_node = random.choice(best_nodes)
+            # check if node is a leaf node
             is_expandable = len(search_node.children) < len(search_node.state.actions)
         return search_node
 
-    def expand(self, node):
+    def __expand(self, node: Node) ->  Node:
+        # terminal nodes can not be expanded
         if node.is_terminal:
             return node
-        actions = node.state.actions
-        for action in actions:
+
+        for action in node.state.actions:
             if action not in node.children:
                 state_copy = node.state.get_copy()
                 state_copy.step(action)
-                newNode = treeNode(state_copy, node)
-                node.children[action] = newNode
-                # print(f"exploring action: {action}")
-                return newNode
+                new_node = Node(state_copy, node)
+                node.children[action] = new_node
+                return new_node
+            
+    def __simulation(self, node: Node) -> float:
+        if node.is_terminal:
+            return 0
+        else:
+            state = node.state.get_copy()
+            reward = state.score
+            steps = 0
 
-    def backpropogate(self, node, reward):
+            while not state.terminal:
+                action = random.choice(state.actions)
+                last_game_score = state.score
+                state.step(action)
+                step_reward = state.score - last_game_score - self.step_cost
+                reward += step_reward * (self.discount ** steps)
+                steps += 1
+
+            return reward
+
+    def __backpropogation(self, node: Node, reward: float) -> None:
         while node is not None:
-            node.numVisits += 1
+            node.num_visits += 1
             node.value += reward
             node = node.parent
-
-    def getBestChild(self, node, explorationValue):
-        best_ucb = float("-inf")
-        best_nodes = []
-        for action, child in node.children.items():
-            child.ucb = child.value / child.numVisits + explorationValue * math.sqrt(2 * math.log(node.numVisits) / child.numVisits)
-            if child.ucb > best_ucb:
-                best_ucb = child.ucb
-                best_nodes = [child]
-            elif child.ucb == best_ucb:
-                best_nodes.append(child)
-        return random.choice(best_nodes)

@@ -2,71 +2,67 @@ from copy import deepcopy
 from gym import Env, spaces
 import numpy as np
 import random
-import pygame
+from IPython.display import clear_output
 
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-RED = (255, 0, 0)
-YELLOW = (255, 255, 0)
-COLORS = [WHITE, BLACK, YELLOW, RED]     
-        
-                
-class Direction:
+class  SnakeEnv(Env):
+    APPLE = "A"
+    HEAD = "H"
+    BODY = "S"
+    EMPTY = "O"
+    
     UP = 'UP'
     DOWN = 'DOWN'
     RIGHT = 'RIGHT'
     LEFT = 'LEFT'
-    DIRECTIONS = [UP, DOWN, LEFT, RIGHT]
-
-
-class  SnakeEnv(Env):
-    APPLE = 3
-    HEAD = 2
-    BODY = 1
-    EMPTY = 0
     
-    def __init__(self, tiles:int, tile_size:int):
+    def __init__(self, tiles:int):
         super(SnakeEnv, self).__init__()
         self.TILES = tiles
-        self.BLOCK_SIZE = tile_size
-        self.GRID_POS = {(y,x) for x in range(0, self.TILES) for y in  range(0, self.TILES)}
 
-        self.actions = Direction.DIRECTIONS
+        self.actions = [SnakeEnv.UP, SnakeEnv.DOWN, SnakeEnv.LEFT, SnakeEnv.RIGHT]
         self.action_space = spaces.Discrete(len(self.actions))
         self.observation_space = spaces.Discrete(self.TILES * self.TILES)
         
+        # Inititialze game
         self.reset()
         
     def reset(self):
+        # Initialize empty grid
         self.grid = np.array([[SnakeEnv.EMPTY for x in range(self.TILES)] for y in range(self.TILES)])
         
+        # Add snake head to the grid at random position
         start_y = random.randint(0 , self.TILES - 1)
         start_x = random.randint(0 , self.TILES - 1)
         self.grid[start_y][start_x] = SnakeEnv.HEAD
         self.snake = np.array([[start_y, start_x]])
-        apple_y, apple_x = self.generate_apple()
+        
+        # Add apple at random position
+        apple_y, apple_x = self.__generate_apple()
         self.grid[apple_y][apple_x] = SnakeEnv.APPLE
         self.apple = (apple_y, apple_x)
         
+        # Initialize game variables & last_action memory
         self.score = 0
         self.terminal = False
         self.last_action = None
+        
         return self.grid
         
     def step(self, action):
-        self.action_input(action)
+        # Move the snake
+        self.__move(direction=action)
+        
         observation = self.grid
         done = self.terminal
         self.score = len(self.snake)
         score = self.score
-        info = {
-            "direction": action
-        }
+        info = {"direction": action}
         
         return observation, score, done, info
     
     def get_copy(self):
-        instance = SnakeEnv(self.TILES, self.BLOCK_SIZE)
+        # Returns a full copy of the game
+        instance = SnakeEnv(self.TILES)
         instance.reset()
         instance.grid = deepcopy(self.grid)
         instance.snake = deepcopy(self.snake)
@@ -76,39 +72,37 @@ class  SnakeEnv(Env):
         instance.last_action = self.last_action
         return instance
 
-    def generate_apple(self):
-        allowed = list(self.GRID_POS - set([tuple(e) for e in self.snake]))
-        if allowed:
-            return random.choice(allowed)
+    def __generate_apple(self):
+        all_grid_positions = {(y,x) for x in range(0, self.TILES) for y in  range(0, self.TILES)}
+        allowed_grid_positions = list(all_grid_positions - set([tuple(e) for e in self.snake]))
+        if allowed_grid_positions:
+            return random.choice(allowed_grid_positions)
         else:
             # In case the board is full of snake the game will end anyway
-            return random.choice(list(self.GRID_POS))
-            
-    def action_input(self, direction):
-        # TODO: maybe think about movement in opposite directions
-        self.move(direction=direction)
+            return random.choice(list(all_grid_positions))
         
-    def move(self, direction):
+        
+    def __move(self, direction):
         head_y, head_x = self.snake[-1]
         match direction:
-            case Direction.UP:
+            case SnakeEnv.UP:
                 new_head = (head_y -1, head_x)
 
-            case Direction.DOWN:
+            case SnakeEnv.DOWN:
                 new_head = (head_y + 1, head_x)
 
-            case Direction.RIGHT:
+            case SnakeEnv.RIGHT:
                 new_head = (head_y, head_x + 1)
 
-            case Direction.LEFT:
+            case SnakeEnv.LEFT:
                 new_head = (head_y, head_x - 1)
                 
 
-        if self.did_wall_crash(new_head):
+        if self.__did_wall_crash(new_head):
             self.terminal = True
             return
         
-        if self.did_self_crash(new_head):
+        if self.__did_self_crash(new_head):
             self.terminal = True
             return
         
@@ -117,8 +111,8 @@ class  SnakeEnv(Env):
         head_y, head_x = self.snake[-1]
         self.grid[head_y][head_x] = SnakeEnv.HEAD
         
-        if self.did_eat():
-            apple_y, apple_x = self.generate_apple()
+        if self.__did_eat():
+            apple_y, apple_x = self.__generate_apple()
             self.grid[apple_y][apple_x] = SnakeEnv.APPLE
             self.apple = (apple_y, apple_x)   
         else:
@@ -128,7 +122,7 @@ class  SnakeEnv(Env):
         
         self.last_action = direction
     
-    def did_eat(self):
+    def __did_eat(self):
         eaten = False
         head_y, head_x = self.snake[-1]
         apple_y, apple_x = self.apple
@@ -136,7 +130,7 @@ class  SnakeEnv(Env):
             eaten = True
         return eaten
     
-    def did_wall_crash(self, new_head):
+    def __did_wall_crash(self, new_head):
         head_y, head_x = new_head
         if head_y >= self.TILES:
             return True
@@ -148,20 +142,19 @@ class  SnakeEnv(Env):
             return True
         return False
     
-    def did_self_crash(self, new_head):
+    def __did_self_crash(self, new_head):
         head_y, head_x = new_head
         for body_y, body_x in self.snake:
             if (body_y == head_y) & (body_x == head_x):
                 return True
         return False
-    
-    def render(self):
-        screen = pygame.display.set_mode((self.TILES * (self.BLOCK_SIZE + 1), self.TILES * (self.BLOCK_SIZE + 1)))
-        pygame.init()
-        pygame.event.pump()
+        
+    def render(self, clear:bool = True):
+        if clear:
+            clear_output(wait=True)
+        grid = ""
         for x in range(self.TILES):
             for y in range(self.TILES):
-                color = self.grid[y][x]
-                pygame.draw.rect(screen, COLORS[color], [x * self.BLOCK_SIZE, y * self.BLOCK_SIZE, (x + 1) * self.BLOCK_SIZE , (y + 1) * self.BLOCK_SIZE])
-        pygame.display.update()
-
+                grid += str(self.grid[x][y]) + " "
+            grid += "\n"
+        print(grid)
